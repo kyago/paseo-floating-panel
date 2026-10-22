@@ -148,6 +148,17 @@ export function useAgentBoard(): BoardItem[] {
     );
 }
 
+/** The shell command a permission asks to run: Paseo's normalized detail, else the raw tool input. */
+function commandOf(permission: Permission): string | null {
+  const raw =
+    permission.detail?.type === "shell"
+      ? permission.detail.command
+      : permission.input?.command;
+  return typeof raw === "string" && raw.trim()
+    ? raw.replace(/\s+/g, " ").trim()
+    : null;
+}
+
 function ago(iso: string): string {
   const minutes = Math.max(
     0,
@@ -171,6 +182,7 @@ function PermissionRow({
   const colors = usePalette();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const command = commandOf(permission);
   // Questions need typed answers, which belong in the session itself.
   const choices: {
     label: string;
@@ -220,6 +232,19 @@ function PermissionRow({
       >
         {permission.title ?? permission.name}
       </Text>
+      {command ? (
+        <Text
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          style={{
+            color: colors.foreground,
+            fontSize: 11,
+            fontFamily: "monospace",
+          }}
+        >
+          $ {command}
+        </Text>
+      ) : null}
       {permission.description ? (
         <Text numberOfLines={3} style={{ color: colors.muted, fontSize: 11 }}>
           {permission.description}
