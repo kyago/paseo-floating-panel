@@ -1,5 +1,4 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
-import { useHosts } from "@getpaseo/plugin/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createContext,
@@ -213,17 +212,14 @@ function FloatingPanel({
   );
 }
 
-function Content({ client }: { client: PluginClientContext }) {
-  const items = useAgentBoard(client);
-  // ponytail: first online host; client.paseo is the selected host, which matches when only one daemon is connected.
-  const serverId =
-    useHosts().find((host) => host.status === "online")?.serverId ?? null;
+function Content() {
+  const items = useAgentBoard();
   const badge = items.filter(
     (item) => item.bucket === "needs_input" || item.bucket === "failed",
   ).length;
   return (
     <FloatingPanel title="에이전트" badge={badge}>
-      <AgentBoard client={client} items={items} serverId={serverId} />
+      <AgentBoard items={items} />
     </FloatingPanel>
   );
 }
@@ -234,7 +230,7 @@ export function FloatingRoot({ client }: { client: PluginClientContext }) {
     <ClientContext.Provider value={client}>
       <QueryClientProvider client={queryClient}>
         <View pointerEvents="box-none" style={{ flex: 1 }}>
-          <Content client={client} />
+          <Content />
         </View>
       </QueryClientProvider>
     </ClientContext.Provider>

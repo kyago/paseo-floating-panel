@@ -1,10 +1,10 @@
-import type { PluginClientContext } from "@getpaseo/plugin/client";
+import { getPaseoClient, useHosts } from "@getpaseo/plugin/client";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { type Palette, usePalette } from "./palette";
 import { openAgentRoute } from "./web";
 
-type PaseoApi = PluginClientContext["paseo"];
+type PaseoApi = ReturnType<typeof getPaseoClient>;
 type Entry = Awaited<ReturnType<PaseoApi["agents"]["list"]>>["entries"][number];
 type Agent = Entry["agent"];
 type Permission = Agent["pendingPermissions"][number];
@@ -15,9 +15,14 @@ type PermissionResponse = Parameters<
 export type Bucket =
   "needs_input" | "failed" | "running" | "attention" | "done";
 
-export interface BoardItem {
+interface HostEntry {
+  serverId: string;
+  host: string;
   agent: Agent;
   project: string;
+}
+
+export interface BoardItem extends HostEntry {
   bucket: Bucket;
 }
 
@@ -60,58 +65,79 @@ const tint = (bucket: Bucket, colors: Palette) =>
 
 const baseName = (cwd: string) => cwd.split("/").filter(Boolean).at(-1) ?? cwd;
 
-/** Live list of the selected host's agents; the subscription re-snapshots after a reconnect. */
-export function useAgentBoard(client: PluginClientContext): BoardItem[] {
-  const [entries, setEntries] = useState<
-    Map<string, { agent: Agent; project: string }>
-  >(new Map());
+/**
+ * Live agents of every connected host, not just the plugin's own: a client can be connected to several
+ * daemons, and each row must navigate and answer on the host that owns it. Subscriptions re-snapshot
+ * after a reconnect.
+ */
+export function useAgentBoard(): BoardItem[] {
+  const hosts = useHosts().filter((host) => host.status === "online");
+  const hostKey = hosts
+    .map((host) => `${host.serverId}\t${host.label}`)
+    .join("\n");
+  const [entries, setEntries] = useState<Map<string, HostEntry>>(new Map());
   useEffect(() => {
     const lifetime = new AbortController();
-    const projectName = (agent: Agent, project?: Entry["project"] | null) =>
-      project?.projectName ?? baseName(agent.cwd);
-    void client.paseo.agents
-      .list({
-        subscribe: {},
-        signal: lifetime.signal,
-        sort: [{ key: "updated_at", direction: "desc" }],
-        page: { limit: 200 },
-      })
-      .then(({ subscription }) => {
-        subscription.subscribe({
-          snapshot: ({ entries }) =>
-            setEntries(
-              new Map(
-                entries.map(({ agent, project }) => [
-                  agent.id,
-                  { agent, project: projectName(agent, project) },
-                ]),
-              ),
-            ),
-          update: (message) => {
-            if (message.type !== "agent_update") return;
-            const update = message.payload;
-            setEntries((current) => {
-              const next = new Map(current);
-              if (update.kind === "upsert") {
-                next.set(update.agent.id, {
-                  agent: update.agent,
-                  project:
-                    update.project?.projectName ??
-                    current.get(update.agent.id)?.project ??
-                    baseName(update.agent.cwd),
-                });
-              } else next.delete(update.agentId);
-              return next;
-            });
-          },
-        });
-      })
-      .catch((error) => {
-        if (!lifetime.signal.aborted)
-          console.error("[floating-panel] agent list failed", error);
+    setEntries(new Map());
+    for (const line of hostKey ? hostKey.split("\n") : []) {
+      const [serverId, host] = line.split("\t");
+      const key = (agentId: string) => `${serverId}:${agentId}`;
+      const entry = (agent: Agent, project: string): HostEntry => ({
+        serverId,
+        host,
+        agent,
+        project,
       });
+      void getPaseoClient(serverId)
+        .agents.list({
+          subscribe: {},
+          signal: lifetime.signal,
+          sort: [{ key: "updated_at", direction: "desc" }],
+          page: { limit: 200 },
+        })
+        .then(({ subscription }) => {
+          subscription.subscribe({
+            snapshot: ({ entries: snapshot }) =>
+              setEntries((current) => {
+                const next = new Map(
+                  [...current].filter(
+                    ([, value]) => value.serverId !== serverId,
+                  ),
+                );
+                for (const { agent, project } of snapshot)
+                  next.set(
+                    key(agent.id),
+                    entry(agent, project?.projectName ?? baseName(agent.cwd)),
+                  );
+                return next;
+              }),
+            update: (message) => {
+              if (message.type !== "agent_update") return;
+              const update = message.payload;
+              setEntries((current) => {
+                const next = new Map(current);
+                if (update.kind === "upsert") {
+                  const project =
+                    update.project?.projectName ??
+                    current.get(key(update.agent.id))?.project ??
+                    baseName(update.agent.cwd);
+                  next.set(key(update.agent.id), entry(update.agent, project));
+                } else next.delete(key(update.agentId));
+                return next;
+              });
+            },
+          });
+        })
+        .catch((error) => {
+          if (!lifetime.signal.aborted)
+            console.error(
+              `[floating-panel] agent list failed on ${host}`,
+              error,
+            );
+        });
+    }
     return () => lifetime.abort();
-  }, [client]);
+  }, [hostKey]);
   return [...entries.values()]
     .filter(({ agent }) => !agent.archivedAt)
     .map((entry) => ({ ...entry, bucket: bucketOf(entry.agent) }))
@@ -134,11 +160,11 @@ function ago(iso: string): string {
 }
 
 function PermissionRow({
-  client,
+  serverId,
   agent,
   permission,
 }: {
-  client: PluginClientContext;
+  serverId: string;
   agent: Agent;
   permission: Permission;
 }) {
@@ -170,8 +196,8 @@ function PermissionRow({
     setPending(true);
     setError(null);
     try {
-      await client.paseo.agents
-        .ref(agent.id)
+      await getPaseoClient(serverId)
+        .agents.ref(agent.id)
         .respondToPermission({ requestId: permission.id, response });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -242,17 +268,9 @@ function PermissionRow({
   );
 }
 
-function AgentRow({
-  client,
-  item,
-  serverId,
-}: {
-  client: PluginClientContext;
-  item: BoardItem;
-  serverId: string | null;
-}) {
+function AgentRow({ item, showHost }: { item: BoardItem; showHost: boolean }) {
   const colors = usePalette();
-  const { agent, bucket, project } = item;
+  const { agent, bucket, project, serverId, host } = item;
   return (
     <View
       style={{
@@ -265,8 +283,7 @@ function AgentRow({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${agent.title ?? "제목 없음"} 세션 열기`}
-        disabled={!serverId}
-        onPress={() => serverId && openAgentRoute(serverId, agent.id)}
+        onPress={() => openAgentRoute(serverId, agent.id, agent.workspaceId)}
         style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
       >
         <View
@@ -285,6 +302,7 @@ function AgentRow({
             {agent.title ?? "제목 없음"}
           </Text>
           <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11 }}>
+            {showHost ? `${host} · ` : ""}
             {project} · {LABEL[bucket]} ·{" "}
             {ago(agent.attentionTimestamp ?? agent.updatedAt)}
           </Text>
@@ -293,7 +311,7 @@ function AgentRow({
       {agent.pendingPermissions.map((permission) => (
         <PermissionRow
           key={permission.id}
-          client={client}
+          serverId={serverId}
           agent={agent}
           permission={permission}
         />
@@ -302,30 +320,22 @@ function AgentRow({
   );
 }
 
-export function AgentBoard({
-  client,
-  items,
-  serverId,
-}: {
-  client: PluginClientContext;
-  items: BoardItem[];
-  serverId: string | null;
-}) {
+export function AgentBoard({ items }: { items: BoardItem[] }) {
   const colors = usePalette();
   const [showDone, setShowDone] = useState(false);
   const active = items.filter((item) => item.bucket !== "done");
   const done = items.length - active.length;
   const visible = showDone ? items : active;
+  const showHost = new Set(items.map((item) => item.serverId)).size > 1;
   return (
     <View style={{ flex: 1 }}>
       <ScrollView style={{ flex: 1 }}>
         {visible.length ? (
           visible.map((item) => (
             <AgentRow
-              key={item.agent.id}
-              client={client}
+              key={`${item.serverId}:${item.agent.id}`}
               item={item}
-              serverId={serverId}
+              showHost={showHost}
             />
           ))
         ) : (

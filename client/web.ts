@@ -61,13 +61,18 @@ export function savePosition(offset: Offset): void {
     localStorage.setItem(POSITION_KEY, JSON.stringify(offset));
 }
 
-/** Paseo's own agent route (`/h/<server>/agent/<id>`); popstate makes the app's router follow it. */
-export function openAgentRoute(serverId: string, agentId: string): void {
+/**
+ * Paseo's own route for an agent tab, `/h/<server>/workspace/<id>?open=agent:<id>` (what the app builds
+ * for agent links); popstate makes the app's router follow it. Workspace ids outside
+ * [A-Za-z0-9._~-] use an encoding we do not reproduce, so those fall back to `/h/<server>/agent/<id>`.
+ */
+export function openAgentRoute(serverId: string, agentId: string, workspaceId?: string): void {
   if (Platform.OS !== "web") return;
-  window.history.pushState(
-    null,
-    "",
-    `/h/${encodeURIComponent(serverId)}/agent/${encodeURIComponent(agentId)}`,
-  );
+  const host = `/h/${encodeURIComponent(serverId)}`;
+  const route =
+    workspaceId && /^[A-Za-z0-9._~-]+$/.test(workspaceId)
+      ? `${host}/workspace/${workspaceId}?open=${encodeURIComponent(`agent:${agentId}`)}`
+      : `${host}/agent/${encodeURIComponent(agentId)}`;
+  window.history.pushState(null, "", route);
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
