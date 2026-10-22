@@ -19,7 +19,13 @@ import {
 } from "react-native";
 import { AgentBoard, useAgentBoard } from "./agents";
 import { usePalette } from "./palette";
-import { loadPosition, type Offset, savePosition } from "./web";
+import {
+  loadOpen,
+  loadPosition,
+  type Offset,
+  saveOpen,
+  savePosition,
+} from "./web";
 
 /**
  * The floating layer is its own React root, outside Paseo's providers, so plugin hooks such as
@@ -91,7 +97,11 @@ function FloatingPanel({
 }) {
   const { width, height } = useWindowDimensions();
   const colors = usePalette();
-  const [open, setOpen] = useState(false);
+  const [open, setOpenState] = useState(loadOpen);
+  const setOpen = (value: boolean) => {
+    setOpenState(value);
+    saveOpen(value);
+  };
   const [offset, setOffset] = useState<Offset>(
     () => loadPosition() ?? { right: 24, bottom: 24 },
   );

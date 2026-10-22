@@ -23,6 +23,7 @@ declare const localStorage: {
 
 const ROOT_ID = "paseo-floating-panel-root";
 const POSITION_KEY = "paseo-floating-panel:position";
+const OPEN_KEY = "paseo-floating-panel:open";
 
 export interface Offset {
   right: number;
@@ -66,7 +67,11 @@ export function savePosition(offset: Offset): void {
  * for agent links); popstate makes the app's router follow it. Workspace ids outside
  * [A-Za-z0-9._~-] use an encoding we do not reproduce, so those fall back to `/h/<server>/agent/<id>`.
  */
-export function openAgentRoute(serverId: string, agentId: string, workspaceId?: string): void {
+export function openAgentRoute(
+  serverId: string,
+  agentId: string,
+  workspaceId?: string,
+): void {
   if (Platform.OS !== "web") return;
   const host = `/h/${encodeURIComponent(serverId)}`;
   const route =
@@ -75,4 +80,13 @@ export function openAgentRoute(serverId: string, agentId: string, workspaceId?: 
       : `${host}/agent/${encodeURIComponent(agentId)}`;
   window.history.pushState(null, "", route);
   window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
+/** Open/closed survives remounts: Paseo can restart the plugin's client entry, e.g. while navigating. */
+export function loadOpen(): boolean {
+  return Platform.OS === "web" && localStorage.getItem(OPEN_KEY) === "1";
+}
+
+export function saveOpen(open: boolean): void {
+  if (Platform.OS === "web") localStorage.setItem(OPEN_KEY, open ? "1" : "0");
 }
