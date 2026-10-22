@@ -27,7 +27,7 @@ export function createOverlayRoot(): { element: OverlayElement; remove(): void }
   document.getElementById(ROOT_ID)?.remove();
   const element = document.createElement("div");
   element.id = ROOT_ID;
-  element.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:40;";
+  element.style.cssText = "position:fixed;inset:0;display:flex;flex-direction:column;pointer-events:none;z-index:40;";
   document.body.appendChild(element);
   return { element, remove: () => element.remove() };
 }
