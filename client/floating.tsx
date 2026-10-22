@@ -1,4 +1,5 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
+import { useHosts } from "@getpaseo/plugin/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createContext,
@@ -17,6 +18,8 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
+import { AgentBoard, useAgentBoard } from "./agents";
+import { usePalette } from "./palette";
 import { loadPosition, type Offset, savePosition } from "./web";
 
 /**
@@ -33,28 +36,6 @@ export function useFloatingClient(): PluginClientContext {
     );
   return client;
 }
-
-// ponytail: follows the OS colour scheme, not Paseo's theme setting; the theme is not exposed outside Paseo's tree.
-const palettes = {
-  dark: {
-    surface: "#1e1e22",
-    raised: "#2a2a30",
-    border: "#3a3a42",
-    foreground: "#ececf1",
-    muted: "#a1a1aa",
-    accent: "#5b8def",
-    accentForeground: "#ffffff",
-  },
-  light: {
-    surface: "#ffffff",
-    raised: "#f4f4f5",
-    border: "#e4e4e7",
-    foreground: "#18181b",
-    muted: "#71717a",
-    accent: "#2563eb",
-    accentForeground: "#ffffff",
-  },
-};
 
 // react-native-web accepts these CSS properties; React Native's types do not list them.
 const webStyle = (style: Record<string, string>) => style as ViewStyle;
@@ -100,9 +81,17 @@ function useDrag(
   );
 }
 
-function FloatingPanel({ children }: { children?: ReactNode }) {
+function FloatingPanel({
+  title,
+  badge,
+  children,
+}: {
+  title: string;
+  badge: number;
+  children: ReactNode;
+}) {
   const { width, height } = useWindowDimensions();
-  const colors = palettes[useColorScheme() === "light" ? "light" : "dark"];
+  const colors = usePalette();
   const [open, setOpen] = useState(false);
   const [offset, setOffset] = useState<Offset>(
     () => loadPosition() ?? { right: 24, bottom: 24 },
@@ -152,6 +141,26 @@ function FloatingPanel({ children }: { children?: ReactNode }) {
         ]}
       >
         <Text style={{ color: colors.accentForeground, fontSize: 22 }}>✦</Text>
+        {badge ? (
+          <View
+            style={{
+              position: "absolute",
+              top: -4,
+              right: -4,
+              minWidth: 20,
+              height: 20,
+              paddingHorizontal: 5,
+              borderRadius: 10,
+              backgroundColor: colors.warning,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Text style={{ color: "#ffffff", fontSize: 11, fontWeight: "700" }}>
+              {badge}
+            </Text>
+          </View>
+        ) : null}
       </View>
     );
   }
@@ -188,7 +197,7 @@ function FloatingPanel({ children }: { children?: ReactNode }) {
         ]}
       >
         <Text style={{ flex: 1, color: colors.foreground, fontWeight: "600" }}>
-          Floating panel
+          {title}
         </Text>
         <Pressable
           accessibilityRole="button"
@@ -199,14 +208,23 @@ function FloatingPanel({ children }: { children?: ReactNode }) {
           <Text style={{ color: colors.muted, fontSize: 16 }}>—</Text>
         </Pressable>
       </View>
-      <View style={{ flex: 1, padding: 16 }}>
-        {children ?? (
-          <Text style={{ color: colors.muted }}>
-            컴포넌트를 여기에 추가하세요.
-          </Text>
-        )}
-      </View>
+      <View style={{ flex: 1 }}>{children}</View>
     </View>
+  );
+}
+
+function Content({ client }: { client: PluginClientContext }) {
+  const items = useAgentBoard(client);
+  // ponytail: first online host; client.paseo is the selected host, which matches when only one daemon is connected.
+  const serverId =
+    useHosts().find((host) => host.status === "online")?.serverId ?? null;
+  const badge = items.filter(
+    (item) => item.bucket === "needs_input" || item.bucket === "failed",
+  ).length;
+  return (
+    <FloatingPanel title="에이전트" badge={badge}>
+      <AgentBoard client={client} items={items} serverId={serverId} />
+    </FloatingPanel>
   );
 }
 
@@ -216,7 +234,7 @@ export function FloatingRoot({ client }: { client: PluginClientContext }) {
     <ClientContext.Provider value={client}>
       <QueryClientProvider client={queryClient}>
         <View pointerEvents="box-none" style={{ flex: 1 }}>
-          <FloatingPanel />
+          <Content client={client} />
         </View>
       </QueryClientProvider>
     </ClientContext.Provider>
