@@ -1,4 +1,5 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createContext,
@@ -140,7 +141,7 @@ function FloatingPanel({
           {
             width: BUTTON,
             height: BUTTON,
-            borderRadius: BUTTON / 2,
+            borderRadius: 14,
             backgroundColor: colors.accent,
             alignItems: "center",
             justifyContent: "center",
@@ -149,7 +150,7 @@ function FloatingPanel({
           webStyle({ cursor: "pointer", userSelect: "none" }),
         ]}
       >
-        <Text style={{ color: colors.accentForeground, fontSize: 22 }}>✦</Text>
+        <Icon name="LayoutDashboard" size={24} color={colors.accentForeground} />
         {badge ? (
           <View
             style={{
@@ -165,7 +166,7 @@ function FloatingPanel({
               justifyContent: "center",
             }}
           >
-            <Text style={{ color: "#ffffff", fontSize: 11, fontWeight: "700" }}>
+            <Text style={{ color: colors.surface, fontSize: 11, fontWeight: "700" }}>
               {badge}
             </Text>
           </View>

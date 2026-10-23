@@ -11,6 +11,6 @@ PC(웹 기반 데스크톱 앱)에서 Paseo 창 위에 떠 있는 플로팅 버�
 
 패널은 Paseo의 플러그인 화면 밖에 있는 별도 루트라 `usePaseo()`·`useRpc()`·`useSettings()`가 동작하지 않는다(`usePaseo must run inside a contributed plugin surface`).
 대신 `useFloatingClient()`로 `paseo`, `rpc`, `openScreen`, `openPanel`을 쓴다. TanStack Query는 패널 자체 `QueryClient`로 동작한다.
-`theme` prop도 없어서 색은 OS 라이트/다크 모드를 따른다(`client/floating.tsx`의 `palettes`).
+`theme` prop도 없어서 색은 Paseo가 `:root`에 올리는 테마 CSS 변수(`--colors-*`)를 쓴다(`client/palette.ts`). 새 색이 필요하면 `palettes`에 `var(--colors-<키>, <대체 hex>)`로 추가한다.
 
 새 컴포넌트는 `client/floating.tsx`의 `Content`에서 `FloatingPanel` 자식으로 넣는다. 세션 이동은 `client/web.ts`의 `openAgentRoute`(Paseo 라우트 `/h/<server>/workspace/<id>?open=agent:<id>`로 pushState). 호스트별 Paseo 호출은 `getPaseoClient(serverId)`.

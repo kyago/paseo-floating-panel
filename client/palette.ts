@@ -1,30 +1,35 @@
 import { useColorScheme } from "react-native";
 
-// ponytail: follows the OS colour scheme, not Paseo's theme setting; the theme is not exposed outside Paseo's tree.
+/**
+ * The floating root sits outside Paseo's tree, so it cannot receive `theme`. Paseo's Unistyles puts the
+ * active theme (built-in or plugin-contributed) on :root as CSS variables, and react-native-web passes
+ * `var(...)` colours through, so the panel follows theme changes live. The hex values are fallbacks
+ * for a Paseo that stops exposing these variables.
+ */
 const palettes = {
   dark: {
-    surface: "#1e1e22",
-    raised: "#2a2a30",
-    border: "#3a3a42",
-    foreground: "#ececf1",
-    muted: "#a1a1aa",
-    accent: "#5b8def",
-    accentForeground: "#ffffff",
-    warning: "#f59e0b",
-    danger: "#ef4444",
-    success: "#22c55e",
+    surface: "var(--colors-surface0, #1e1e22)",
+    raised: "var(--colors-surface2, #2a2a30)",
+    border: "var(--colors-border, #3a3a42)",
+    foreground: "var(--colors-foreground, #ececf1)",
+    muted: "var(--colors-foreground-muted, #a1a1aa)",
+    accent: "var(--colors-accent, #5b8def)",
+    accentForeground: "var(--colors-accent-foreground, #ffffff)",
+    warning: "var(--colors-status-warning, #f59e0b)",
+    danger: "var(--colors-status-danger, #ef4444)",
+    success: "var(--colors-status-success, #22c55e)",
   },
   light: {
-    surface: "#ffffff",
-    raised: "#f4f4f5",
-    border: "#e4e4e7",
-    foreground: "#18181b",
-    muted: "#71717a",
-    accent: "#2563eb",
-    accentForeground: "#ffffff",
-    warning: "#d97706",
-    danger: "#dc2626",
-    success: "#16a34a",
+    surface: "var(--colors-surface0, #ffffff)",
+    raised: "var(--colors-surface2, #f4f4f5)",
+    border: "var(--colors-border, #e4e4e7)",
+    foreground: "var(--colors-foreground, #18181b)",
+    muted: "var(--colors-foreground-muted, #71717a)",
+    accent: "var(--colors-accent, #2563eb)",
+    accentForeground: "var(--colors-accent-foreground, #ffffff)",
+    warning: "var(--colors-status-warning, #d97706)",
+    danger: "var(--colors-status-danger, #dc2626)",
+    success: "var(--colors-status-success, #16a34a)",
   },
 };
 
