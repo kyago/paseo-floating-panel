@@ -40,13 +40,9 @@ function bucketOf(agent: Agent): Bucket {
   return "done";
 }
 
-const ORDER: Bucket[] = [
-  "needs_input",
-  "failed",
-  "running",
-  "attention",
-  "done",
-];
+/** Sort by the user's last request only (not status or updatedAt), so agent replies don't reshuffle rows under the cursor. */
+const requestedAt = (agent: Agent) => agent.lastUserMessageAt ?? agent.createdAt;
+
 const LABEL: Record<Bucket, string> = {
   needs_input: "응답 필요",
   failed: "오류",
@@ -141,11 +137,7 @@ export function useAgentBoard(): BoardItem[] {
   return [...entries.values()]
     .filter(({ agent }) => !agent.archivedAt)
     .map((entry) => ({ ...entry, bucket: bucketOf(entry.agent) }))
-    .sort(
-      (a, b) =>
-        ORDER.indexOf(a.bucket) - ORDER.indexOf(b.bucket) ||
-        b.agent.updatedAt.localeCompare(a.agent.updatedAt),
-    );
+    .sort((a, b) => requestedAt(b.agent).localeCompare(requestedAt(a.agent)));
 }
 
 /** The shell command a permission asks to run: Paseo's normalized detail, else the raw tool input. */
